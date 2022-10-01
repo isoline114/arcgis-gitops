@@ -2,23 +2,29 @@ name: site-core-aws
 
 on: 
   workflow_dispatch:
+    inputs:
+      terraform_command:
+        description: 'Terraform Command'
+        type: choice
+        options:
+        - apply
+        - plan
 
 env:
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   TERRAFORM_BACKEND_S3_BUCKET: ${{ vars.TERRAFORM_BACKEND_S3_BUCKET }}
   AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
-  PYTHONPATH: ${{ github.workspace }}/aws/scripts
+  CONFIG_FILE: ${{ github.workspace }}/config/aws/arcgis-site-core/infrastructure-core.tfvars.json
 
 concurrency:
   group: ${{ github.ref_name }}
 
 jobs:
   infrastructure_core:
-    name: Create core infrastructure
+    name: Core AWS Infrastructure
     runs-on: ubuntu-latest
     outputs:
-      deployment_s3_bucket: ${{ steps.output.outputs.deployment_s3_bucket }}
       vpc_id: ${{ steps.output.outputs.vpc_id }}
     defaults:
       run:
@@ -32,47 +38,19 @@ jobs:
       with:
         ref: ${{ github.ref_name }}
     - name: Terraform Init
-      id: init
+      id: terraform-init
       run: |
-        SITE_ID=$(jq -r '.site_id' ../config/infrastructure-core.tfvars.json)
+        SITE_ID=$(jq -r '.site_id' $CONFIG_FILE)
         terraform init -backend-config="bucket=$TERRAFORM_BACKEND_S3_BUCKET" -backend-config="key=$SITE_ID/aws/infrastructure-core.tfstate" -backend-config="region=$AWS_DEFAULT_REGION" 
     - name: Terraform Apply
-      id: apply
-      run: terraform apply -var-file ../config/infrastructure-core.tfvars.json -auto-approve
+      id: terraform-apply
+      if: github.event.inputs.terraform_command == 'apply'
+      run: terraform apply -var-file $CONFIG_FILE -auto-approve
+    - name: Terraform Plan
+      id: terraform-plan
+      if: github.event.inputs.terraform_command == 'plan'
+      run: terraform plan -var-file $CONFIG_FILE
     - name: Terraform Output
-      id: output
+      id: terraform-output
       run: |
-        echo deployment_s3_bucket=$(terraform output -json | jq -r .deployment_s3_bucket.value) >> $GITHUB_OUTPUT
         echo vpc_id=$(terraform output -json | jq -r .vpc_id.value) >> $GITHUB_OUTPUT
-  automation_chef:
-    name: Create Chef automation infrastructure 
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: aws/arcgis-site-core/automation-chef
-    permissions:
-      contents: read
-      pull-requests: write
-    needs: infrastructure_core
-    steps:
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
-      with:
-          terraform_version: $TERRAFORM_VERSION
-          terraform_wrapper: false
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        ref: main
-    - name: Install boto3
-      id: install-boto3
-      run: pip install boto3
-    - name: Terraform Init
-      id: init
-      run: |
-        SITE_ID=$(jq -r '.site_id' ../config/automation-chef.tfvars.json)
-        terraform init -backend-config="bucket=$TERRAFORM_BACKEND_S3_BUCKET" -backend-config="key=$SITE_ID/aws/automation-chef.tfstate" -backend-config="region=$AWS_DEFAULT_REGION" 
-    - name: Terraform Apply
-      id: apply
-      run: terraform apply -var-file ../config/automation-chef.tfvars.json -auto-approve
-            

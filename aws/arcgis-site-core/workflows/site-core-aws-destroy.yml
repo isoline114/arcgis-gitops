@@ -8,14 +8,14 @@ env:
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   TERRAFORM_BACKEND_S3_BUCKET: ${{ vars.TERRAFORM_BACKEND_S3_BUCKET }}
   AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
-  PYTHONPATH: ${{ github.workspace }}/aws/scripts
+  CONFIG_FILE: ${{ github.workspace }}/config/aws/arcgis-site-core/infrastructure-core.tfvars.json
 
 concurrency:
   group: ${{ github.ref_name }}
 
 jobs:
-  infrastructure_core:
-    name: Destroy core infrastructure
+  destroy:
+    name: Destroy Core AWS Infrastructure
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -23,48 +23,14 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    needs: automation_chef      
     steps:
     - name: Checkout
       uses: actions/checkout@v4
       with:
         ref: ${{ github.ref_name }}
-    - name: Terraform Init
-      id: init
+    - name: Run Terraform Destroy
+      id: terraform-destroy
       run: |
-        SITE_ID=$(jq -r '.site_id' ../config/infrastructure-core.tfvars.json)
+        SITE_ID=$(jq -r '.site_id' $CONFIG_FILE)
         terraform init -backend-config="bucket=$TERRAFORM_BACKEND_S3_BUCKET" -backend-config="key=$SITE_ID/aws/infrastructure-core.tfstate" -backend-config="region=$AWS_DEFAULT_REGION" 
-    - name: Terraform Destroy
-      id: destroy
-      run: terraform destroy -var-file ../config/infrastructure-core.tfvars.json -auto-approve
-  automation_chef:
-    name: Destroy Chef automation infrastructure 
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: aws/arcgis-site-core/automation-chef
-    permissions:
-      contents: read
-      pull-requests: write
-    steps:
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
-      with:
-          terraform_version: $TERRAFORM_VERSION
-          terraform_wrapper: false
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        ref: main
-    - name: Install boto3
-      id: install-boto3
-      run: pip install boto3
-    - name: Terraform Init
-      id: init
-      run: |
-        SITE_ID=$(jq -r '.site_id' ../config/automation-chef.tfvars.json)
-        terraform init -backend-config="bucket=$TERRAFORM_BACKEND_S3_BUCKET" -backend-config="key=$SITE_ID/aws/automation-chef.tfstate" -backend-config="region=$AWS_DEFAULT_REGION" 
-    - name: Terraform Destroy
-      id: destroy 
-      run: terraform destroy -var-file ../config/automation-chef.tfvars.json -auto-approve
-            
+        terraform destroy -var-file $CONFIG_FILE -auto-approve
