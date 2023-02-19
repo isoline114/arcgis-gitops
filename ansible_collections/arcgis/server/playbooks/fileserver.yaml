@@ -15,7 +15,7 @@
 
 # This playbook configures the file server for ArcGIS Server.
 
-- name: Configure fileserver for ArcGIS Server
+- name: Configure file server for ArcGIS Server
   hosts: all
   vars:
     run_as_user: 'arcgis'
