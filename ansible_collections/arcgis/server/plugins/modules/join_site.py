@@ -58,7 +58,7 @@ EXAMPLES = r'''
 
 RETURN = r'''
 response:
-    description: server reaponse.
+    description: server response.
     type: str
     returned: always
 '''
