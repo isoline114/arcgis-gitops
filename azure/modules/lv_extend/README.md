@@ -1,7 +1,7 @@
 <!-- BEGIN_TF_DOCS -->
 # Terraform module lv_extend
 
-Terraform module lv_extend extends the logical volume on Azure VMs in a deployment.
+Terraform module lv_extend extends logical volumes on Azure VMs in a deployment.
 
 The module uses az_run_shell_script python module to run ${var.os}.sh scripts on the deployment's VMs in specific roles.
 
